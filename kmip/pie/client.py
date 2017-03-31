@@ -17,6 +17,7 @@ import logging
 import six
 
 from kmip.core import enums
+from kmip.core import primitives
 from kmip.core import objects as cobjects
 
 from kmip.core.factories import attributes
@@ -532,6 +533,59 @@ class ProxyKmipClient(api.KmipClient):
 
         # Activate the managed object and handle the results
         result = self.proxy.activate(uid)
+
+        status = result.result_status.value
+        if status == enums.ResultStatus.SUCCESS:
+            return
+        else:
+            reason = result.result_reason.value
+            message = result.result_message.value
+            raise exceptions.KmipOperationFailure(status, reason, message)
+
+    def revoke(self, code, uid=None, message=None,
+               compromise_occurrence_date=None):
+        """
+        Revoke a managed object stored by a KMIP appliance.
+
+        Args:
+            code (RevocationReasonCode): An enumeration indicating the
+                revocation reason.
+            uid (string): The unique ID of the managed object to revoke.
+            message (string): A message regarding the revocation.
+            compromise_occurrence_date (DateTime): A Date-Time primitive
+                indicating when the managed object was firstly believed
+                to be compromised.
+
+        Returns:
+            None
+
+        Raises:
+            ClientConnectionNotOpen: if the client connection is unusable
+            KmipOperationFailure: if the operation result is a failure
+            TypeError: if the input argument is invalid
+        """
+        # Check input
+        if not isinstance(code, enums.RevocationReasonCode):
+            raise TypeError(
+                "code must be a RevocationReasonCode enumeration")
+        if uid is not None:
+            if not isinstance(uid, six.string_types):
+                raise TypeError("uid must be a string")
+        if message is not None:
+            if not isinstance(message, six.string_types):
+                raise TypeError("message must be a string")
+        if compromise_occurrence_date is not None:
+            if not isinstance(compromise_occurrence_date, primitives.DateTime):
+                raise TypeError(
+                    "compromise_occurrence_date must be a DateTime primitive")
+
+        # Verify that operations can be given at this time
+        if not self._is_open:
+            raise exceptions.ClientConnectionNotOpen()
+
+        # revoke the managed object and handle the results
+        result = self.proxy.revoke(code, uid, message,
+                                   compromise_occurrence_date)
 
         status = result.result_status.value
         if status == enums.ResultStatus.SUCCESS:

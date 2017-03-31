@@ -21,6 +21,7 @@ import testtools
 from kmip.core import attributes as attr
 from kmip.core import enums
 from kmip.core import objects as obj
+from kmip.core import primitives
 
 from kmip.core.factories import attributes
 from kmip.core.messages import contents
@@ -948,6 +949,109 @@ class TestProxyKmipClient(testtools.TestCase):
 
         self.assertRaisesRegexp(
             KmipOperationFailure, error_msg, client.activate, *args)
+
+    @mock.patch('kmip.pie.client.KMIPProxy',
+                mock.MagicMock(spec_set=KMIPProxy))
+    def test_revoke(self):
+        """
+        Test that the client can revoke a secret.
+        """
+        code = enums.RevocationReasonCode.KEY_COMPROMISE
+        uuid = 'aaaaaaaa-1111-2222-3333-ffffffffffff'
+        message = 'Key compromised!'
+        compromise_occurrence_date = primitives.DateTime(1)
+
+        status = enums.ResultStatus.SUCCESS
+        result = results.OperationResult(contents.ResultStatus(status))
+
+        with ProxyKmipClient() as client:
+            client.proxy.revoke.return_value = result
+            result = client.revoke(
+                code, uuid, message, compromise_occurrence_date)
+            client.proxy.revoke.assert_called_with(
+                code, uuid, message, compromise_occurrence_date)
+            self.assertEqual(None, result)
+
+    @mock.patch('kmip.pie.client.KMIPProxy',
+                mock.MagicMock(spec_set=KMIPProxy))
+    def test_revoke_on_invalid_inputs(self):
+        """
+        Test that a TypeError exception is raised when trying to revoke a
+        secret with invalid inputs.
+        """
+        code = enums.RevocationReasonCode.KEY_COMPROMISE
+        code_invalid = "key compromise"
+
+        uuid = 'aaaaaaaa-1111-2222-3333-ffffffffffff'
+        uuid_invalid = 123
+
+        message = 'Key compromised!'
+        message_invalid = 123
+
+        compromise_occurrence_date = primitives.DateTime(1)
+        compromise_occurrence_date_invalid = '1'
+
+        args = [code_invalid, uuid, message, compromise_occurrence_date]
+        with ProxyKmipClient() as client:
+            self.assertRaises(TypeError, client.revoke, *args)
+
+        args = [code, uuid_invalid, message, compromise_occurrence_date]
+        with ProxyKmipClient() as client:
+            self.assertRaises(TypeError, client.revoke, *args)
+
+        args = [code, uuid, message_invalid, compromise_occurrence_date]
+        with ProxyKmipClient() as client:
+            self.assertRaises(TypeError, client.revoke, *args)
+
+        args = [code, uuid, message, compromise_occurrence_date_invalid]
+        with ProxyKmipClient() as client:
+            self.assertRaises(TypeError, client.revoke, *args)
+
+    @mock.patch('kmip.pie.client.KMIPProxy',
+                mock.MagicMock(spec_set=KMIPProxy))
+    def test_revoke_on_closed(self):
+        """
+        Test that a ClientConnectionNotOpen exception is raised when trying
+        to revoke a secret on an unopened client connection.
+        """
+        client = ProxyKmipClient()
+        code = enums.RevocationReasonCode.KEY_COMPROMISE
+        uuid = 'aaaaaaaa-1111-2222-3333-ffffffffffff'
+        message = 'Key compromised!'
+        compromise_occurrence_date = primitives.DateTime(1)
+        args = [code, uuid, message, compromise_occurrence_date]
+        self.assertRaises(
+            ClientConnectionNotOpen, client.revoke, *args)
+
+    @mock.patch('kmip.pie.client.KMIPProxy',
+                mock.MagicMock(spec_set=KMIPProxy))
+    def test_revoke_on_operation_failure(self):
+        """
+        Test that a KmipOperationFailure exception is raised when the
+        backend fails to revoke a secret.
+        """
+        status = enums.ResultStatus.OPERATION_FAILED
+        reason = enums.ResultReason.GENERAL_FAILURE
+        message = "Test failure message"
+
+        result = results.OperationResult(
+            contents.ResultStatus(status),
+            contents.ResultReason(reason),
+            contents.ResultMessage(message))
+        error_msg = str(KmipOperationFailure(status, reason, message))
+
+        client = ProxyKmipClient()
+        client.open()
+        client.proxy.revoke.return_value = result
+
+        code = enums.RevocationReasonCode.KEY_COMPROMISE
+        uuid = 'aaaaaaaa-1111-2222-3333-ffffffffffff'
+        message = 'Key compromised!'
+        compromise_occurrence_date = primitives.DateTime(1)
+        args = [code, uuid, message, compromise_occurrence_date]
+
+        self.assertRaisesRegexp(
+            KmipOperationFailure, error_msg, client.revoke, *args)
 
     @mock.patch('kmip.pie.client.KMIPProxy',
                 mock.MagicMock(spec_set=KMIPProxy))

@@ -34,6 +34,7 @@ from kmip.core import attributes as attr
 from kmip.core.enums import AuthenticationSuite
 from kmip.core.enums import ConformanceClause
 from kmip.core.enums import CredentialType
+from kmip.core.enums import Tags
 from kmip.core.enums import Operation as OperationEnum
 
 from kmip.core.factories.credentials import CredentialFactory
@@ -351,11 +352,14 @@ class KMIPProxy(KMIP):
         results = self._process_batch_items(response)
         return results[0]
 
-    def revoke(self, uuid, reason, message=None, credential=None):
-        return self._revoke(unique_identifier=uuid,
-                            revocation_code=reason,
-                            revocation_message=message,
-                            credential=credential)
+    def revoke(self, reason, uuid=None, message=None,
+               compromise_occurrence_date=None, credential=None):
+        return self._revoke(
+            unique_identifier=uuid,
+            revocation_code=reason,
+            revocation_message=message,
+            compromise_occurrence_date=compromise_occurrence_date,
+            credential=credential)
 
     def destroy(self, uuid, credential=None):
         return self._destroy(unique_identifier=uuid,
@@ -806,7 +810,8 @@ class KMIPProxy(KMIP):
         return result
 
     def _revoke(self, unique_identifier=None, revocation_code=None,
-                revocation_message=None, credential=None):
+                revocation_message=None, compromise_occurrence_date=None,
+                credential=None):
         operation = Operation(OperationEnum.REVOKE)
 
         reason = objects.RevocationReason(code=revocation_code,
@@ -815,10 +820,14 @@ class KMIPProxy(KMIP):
         if unique_identifier is not None:
             uuid = attr.UniqueIdentifier(unique_identifier)
 
+        # make sure the correct tag is set
+        if compromise_occurrence_date is not None:
+            compromise_occurrence_date.tag = Tags.COMPROMISE_OCCURRENCE_DATE
+
         payload = revoke.RevokeRequestPayload(
             unique_identifier=uuid,
             revocation_reason=reason,
-            compromise_date=None)  # TODO(tim-kelsey): sort out date handling
+            compromise_date=compromise_occurrence_date)
 
         batch_item = messages.RequestBatchItem(operation=operation,
                                                request_payload=payload)
