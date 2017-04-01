@@ -1692,7 +1692,7 @@ class KmipEngine(object):
               managed_object.cryptographic_algorithm):
             algorithm = managed_object.cryptographic_algorithm
         else:
-            raise exceptions.InvalidField(
+            raise exceptions.PermissionDenied(
                 "The cryptographic algorithm must be specified "
                 "for the MAC operation"
             )
@@ -1701,7 +1701,7 @@ class KmipEngine(object):
         if managed_object.value:
             key = managed_object.value
         else:
-            raise exceptions.InvalidField(
+            raise exceptions.PermissionDenied(
                 "A secret key value must be specified "
                 "for the MAC operation"
             )
@@ -1710,9 +1710,21 @@ class KmipEngine(object):
         if payload.data:
             data = payload.data.value
         else:
-            raise exceptions.InvalidField(
+            raise exceptions.PermissionDenied(
                 "No data to be MACed"
             )
+
+        if managed_object.state != enums.State.ACTIVE:
+            raise exceptions.PermissionDenied(
+                "Object is not in a state that can be used for MACing."
+            )
+
+        if enums.CryptographicUsageMask.MAC_GENERATE not in \
+           managed_object.cryptographic_usage_masks:
+                raise exceptions.PermissionDenied(
+                    "MAC GERERATE crypto usage mask must be set "
+                    "for the MAC operation"
+                )
 
         result = self._cryptography_engine.mac(
             algorithm,
