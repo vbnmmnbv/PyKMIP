@@ -4663,6 +4663,45 @@ class TestKmipEngine(testtools.TestCase):
             *args
         )
 
+    def test_destroy_active_state(self):
+        """
+        Test that the right error is generated when destroy request is
+        received for an object that is in 'active' state.
+        """
+        e = engine.KmipEngine()
+        e._data_store = self.engine
+        e._data_store_session_factory = self.session_factory
+        e._data_session = e._data_store_session_factory()
+        e._logger = mock.MagicMock()
+
+        key = (b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+               b'\x00\x00\x00\x00\x00')
+        algorithm = enums.CryptographicAlgorithm.AES
+        obj = pie_objects.SymmetricKey(algorithm, 128, key)
+        obj.state = enums.State.ACTIVE
+
+        e._data_session.add(obj)
+        e._data_session.commit()
+        e._data_session = e._data_store_session_factory()
+
+        id = str(obj.unique_identifier)
+
+        # Test by specifying the ID of the object to destroy.
+        payload = destroy.DestroyRequestPayload(
+            unique_identifier=attributes.UniqueIdentifier(id)
+        )
+
+        args = (payload, )
+        regex = "Object is not pre-active or deactivated and cannot be " \
+                "destroyed."
+        six.assertRaisesRegex(
+            self,
+            exceptions.PermissionDenied,
+            regex,
+            e._process_destroy,
+            *args
+        )
+
     def test_query(self):
         """
         Test that a Query request can be processed correctly, for different
